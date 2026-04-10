@@ -18,6 +18,26 @@ export default function Admin() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState("dashboard");
 
+  // Form states
+  const [showCourseForm, setShowCourseForm] = React.useState(false);
+  const [courseFormData, setCourseFormData] = React.useState({
+    title: "",
+    description: "",
+    duration: "",
+    price: "",
+    image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
+    tags: ""
+  });
+
+  const [showBlogForm, setShowBlogForm] = React.useState(false);
+  const [blogFormData, setBlogFormData] = React.useState({
+    title: "",
+    excerpt: "",
+    content: "",
+    category: "",
+    image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
+  });
+
   const fetchData = async () => {
     try {
       const [blogsRes, coursesRes, messagesRes, seoRes] = await Promise.all([
@@ -63,22 +83,24 @@ export default function Admin() {
     }
   };
 
-  const handleAddBlog = async () => {
-    const newBlog = {
-      title: "New Blog Post",
-      excerpt: "Short description...",
-      content: "Full content here...",
-      category: "General",
-      image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
-    };
+  const handleAddBlog = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       const res = await fetch("/api/blogs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newBlog)
+        body: JSON.stringify(blogFormData)
       });
       if (res.ok) {
         toast.success("Blog added");
+        setShowBlogForm(false);
+        setBlogFormData({
+          title: "",
+          excerpt: "",
+          content: "",
+          category: "",
+          image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
+        });
         fetchData();
       }
     } catch (err) {
@@ -86,23 +108,29 @@ export default function Admin() {
     }
   };
 
-  const handleAddCourse = async () => {
-    const newCourse = {
-      title: "New Course",
-      description: "Course description...",
-      duration: "3 Months",
-      price: "₹10,000",
-      image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
-      tags: ["Tech"]
+  const handleAddCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const courseToSubmit = {
+      ...courseFormData,
+      tags: courseFormData.tags.split(",").map(t => t.trim())
     };
     try {
       const res = await fetch("/api/courses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newCourse)
+        body: JSON.stringify(courseToSubmit)
       });
       if (res.ok) {
         toast.success("Course added");
+        setShowCourseForm(false);
+        setCourseFormData({
+          title: "",
+          description: "",
+          duration: "",
+          price: "",
+          image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
+          tags: ""
+        });
         fetchData();
       }
     } catch (err) {
@@ -252,10 +280,72 @@ export default function Admin() {
                     <div className="space-y-6">
                       <div className="flex justify-between items-center">
                         <h2 className="text-3xl font-bold">Manage Blogs</h2>
-                        <Button onClick={handleAddBlog}>
-                          <Plus className="h-4 w-4 mr-2" /> New Post
-                        </Button>
+                        {!showBlogForm && (
+                          <Button onClick={() => setShowBlogForm(true)}>
+                            <Plus className="h-4 w-4 mr-2" /> New Post
+                          </Button>
+                        )}
                       </div>
+
+                      {showBlogForm && (
+                        <Card className="border-primary/20 bg-primary/5">
+                          <CardHeader>
+                            <CardTitle>Create New Blog Post</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <form onSubmit={handleAddBlog} className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Title</Label>
+                                  <Input 
+                                    value={blogFormData.title} 
+                                    onChange={(e) => setBlogFormData({...blogFormData, title: e.target.value})}
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Category</Label>
+                                  <Input 
+                                    value={blogFormData.category} 
+                                    onChange={(e) => setBlogFormData({...blogFormData, category: e.target.value})}
+                                    required
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Excerpt</Label>
+                                <Input 
+                                  value={blogFormData.excerpt} 
+                                  onChange={(e) => setBlogFormData({...blogFormData, excerpt: e.target.value})}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Content</Label>
+                                <Textarea 
+                                  value={blogFormData.content} 
+                                  onChange={(e) => setBlogFormData({...blogFormData, content: e.target.value})}
+                                  className="min-h-[150px]"
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Image URL</Label>
+                                <Input 
+                                  value={blogFormData.image} 
+                                  onChange={(e) => setBlogFormData({...blogFormData, image: e.target.value})}
+                                  required
+                                />
+                              </div>
+                              <div className="flex gap-4">
+                                <Button type="submit">Create Blog</Button>
+                                <Button type="button" variant="outline" onClick={() => setShowBlogForm(false)}>Cancel</Button>
+                              </div>
+                            </form>
+                          </CardContent>
+                        </Card>
+                      )}
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {blogs.map((blog) => (
                           <Card key={blog.id} className="overflow-hidden">
@@ -279,10 +369,82 @@ export default function Admin() {
                     <div className="space-y-6">
                       <div className="flex justify-between items-center">
                         <h2 className="text-3xl font-bold">Manage Courses</h2>
-                        <Button onClick={handleAddCourse}>
-                          <Plus className="h-4 w-4 mr-2" /> New Course
-                        </Button>
+                        {!showCourseForm && (
+                          <Button onClick={() => setShowCourseForm(true)}>
+                            <Plus className="h-4 w-4 mr-2" /> New Course
+                          </Button>
+                        )}
                       </div>
+
+                      {showCourseForm && (
+                        <Card className="border-accent/20 bg-accent/5">
+                          <CardHeader>
+                            <CardTitle>Add New Course</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <form onSubmit={handleAddCourse} className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Course Title</Label>
+                                  <Input 
+                                    value={courseFormData.title} 
+                                    onChange={(e) => setCourseFormData({...courseFormData, title: e.target.value})}
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Price (e.g. ₹10,000)</Label>
+                                  <Input 
+                                    value={courseFormData.price} 
+                                    onChange={(e) => setCourseFormData({...courseFormData, price: e.target.value})}
+                                    required
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Duration (e.g. 3 Months)</Label>
+                                  <Input 
+                                    value={courseFormData.duration} 
+                                    onChange={(e) => setCourseFormData({...courseFormData, duration: e.target.value})}
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Tags (comma separated)</Label>
+                                  <Input 
+                                    value={courseFormData.tags} 
+                                    onChange={(e) => setCourseFormData({...courseFormData, tags: e.target.value})}
+                                    placeholder="Java, React, MySQL"
+                                    required
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Description</Label>
+                                <Textarea 
+                                  value={courseFormData.description} 
+                                  onChange={(e) => setCourseFormData({...courseFormData, description: e.target.value})}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Image URL</Label>
+                                <Input 
+                                  value={courseFormData.image} 
+                                  onChange={(e) => setCourseFormData({...courseFormData, image: e.target.value})}
+                                  required
+                                />
+                              </div>
+                              <div className="flex gap-4">
+                                <Button type="submit">Add Course</Button>
+                                <Button type="button" variant="outline" onClick={() => setShowCourseForm(false)}>Cancel</Button>
+                              </div>
+                            </form>
+                          </CardContent>
+                        </Card>
+                      )}
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {courses.map((course) => (
                           <Card key={course.id}>
