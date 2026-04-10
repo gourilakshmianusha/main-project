@@ -118,10 +118,22 @@ export default function Admin() {
 
   const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      console.log("Login successful:", result.user.email);
       toast.success("Logged in successfully");
-    } catch (err) {
-      toast.error("Login failed");
+    } catch (err: any) {
+      console.error("Login error details:", err);
+      let errorMessage = "Login failed";
+      
+      if (err.code === "auth/unauthorized-domain") {
+        errorMessage = "Unauthorized domain. Please add this domain to your Firebase Console Authorized Domains list.";
+      } else if (err.code === "auth/popup-blocked") {
+        errorMessage = "Popup blocked. Please allow popups for this site.";
+      } else if (err.message) {
+        errorMessage = `Login failed: ${err.message}`;
+      }
+      
+      toast.error(errorMessage, { duration: 5000 });
     }
   };
 
