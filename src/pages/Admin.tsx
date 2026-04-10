@@ -14,11 +14,16 @@ export default function Admin() {
   const [blogs, setBlogs] = React.useState<any[]>([]);
   const [courses, setCourses] = React.useState<any[]>([]);
   const [messages, setMessages] = React.useState<any[]>([]);
+  const [subscribers, setSubscribers] = React.useState<string[]>([]);
+  const [homeContent, setHomeContent] = React.useState<any>({});
   const [seoSettings, setSeoSettings] = React.useState<any>({});
   const [isLoading, setIsLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState("dashboard");
 
   // Form states
+  const [editingBlog, setEditingBlog] = React.useState<any>(null);
+  const [editingCourse, setEditingCourse] = React.useState<any>(null);
+  
   const [showCourseForm, setShowCourseForm] = React.useState(false);
   const [courseFormData, setCourseFormData] = React.useState({
     title: "",
@@ -40,22 +45,28 @@ export default function Admin() {
 
   const fetchData = async () => {
     try {
-      const [blogsRes, coursesRes, messagesRes, seoRes] = await Promise.all([
+      const [blogsRes, coursesRes, messagesRes, seoRes, homeRes, subRes] = await Promise.all([
         fetch("/api/blogs"),
         fetch("/api/courses"),
         fetch("/api/contact-messages"),
-        fetch("/api/seo-settings")
+        fetch("/api/seo-settings"),
+        fetch("/api/home-content"),
+        fetch("/api/newsletter-subscribers")
       ]);
-      const [blogsData, coursesData, messagesData, seoData] = await Promise.all([
+      const [blogsData, coursesData, messagesData, seoData, homeData, subData] = await Promise.all([
         blogsRes.json(),
         coursesRes.json(),
         messagesRes.json(),
-        seoRes.json()
+        seoRes.json(),
+        homeRes.json(),
+        subRes.json()
       ]);
       setBlogs(blogsData);
       setCourses(coursesData);
       setMessages(messagesData);
       setSeoSettings(seoData);
+      setHomeContent(homeData);
+      setSubscribers(subData);
     } catch (err) {
       toast.error("Failed to fetch data");
     } finally {
@@ -83,17 +94,37 @@ export default function Admin() {
     }
   };
 
+  const handleUpdateHome = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/home-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(homeContent)
+      });
+      if (res.ok) {
+        toast.success("Home page content updated");
+      }
+    } catch (err) {
+      toast.error("Failed to update home content");
+    }
+  };
+
   const handleAddBlog = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/blogs", {
-        method: "POST",
+      const method = editingBlog ? "PUT" : "POST";
+      const url = editingBlog ? `/api/blogs/${editingBlog.id}` : "/api/blogs";
+      
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(blogFormData)
       });
       if (res.ok) {
-        toast.success("Blog added");
+        toast.success(editingBlog ? "Blog updated" : "Blog added");
         setShowBlogForm(false);
+        setEditingBlog(null);
         setBlogFormData({
           title: "",
           excerpt: "",
@@ -104,7 +135,7 @@ export default function Admin() {
         fetchData();
       }
     } catch (err) {
-      toast.error("Failed to add blog");
+      toast.error("Failed to save blog");
     }
   };
 
@@ -112,17 +143,23 @@ export default function Admin() {
     e.preventDefault();
     const courseToSubmit = {
       ...courseFormData,
-      tags: courseFormData.tags.split(",").map(t => t.trim())
+      tags: typeof courseFormData.tags === "string" 
+        ? courseFormData.tags.split(",").map(t => t.trim())
+        : courseFormData.tags
     };
     try {
-      const res = await fetch("/api/courses", {
-        method: "POST",
+      const method = editingCourse ? "PUT" : "POST";
+      const url = editingCourse ? `/api/courses/${editingCourse.id}` : "/api/courses";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(courseToSubmit)
       });
       if (res.ok) {
-        toast.success("Course added");
+        toast.success(editingCourse ? "Course updated" : "Course added");
         setShowCourseForm(false);
+        setEditingCourse(null);
         setCourseFormData({
           title: "",
           description: "",
@@ -134,8 +171,33 @@ export default function Admin() {
         fetchData();
       }
     } catch (err) {
-      toast.error("Failed to add course");
+      toast.error("Failed to save course");
     }
+  };
+
+  const startEditBlog = (blog: any) => {
+    setEditingBlog(blog);
+    setBlogFormData({
+      title: blog.title,
+      excerpt: blog.excerpt,
+      content: blog.content,
+      category: blog.category,
+      image: blog.image
+    });
+    setShowBlogForm(true);
+  };
+
+  const startEditCourse = (course: any) => {
+    setEditingCourse(course);
+    setCourseFormData({
+      title: course.title,
+      description: course.description,
+      duration: course.duration,
+      price: course.price,
+      image: course.image,
+      tags: course.tags.join(", ")
+    });
+    setShowCourseForm(true);
   };
 
   const handleDeleteBlog = async (id: string) => {
@@ -178,9 +240,11 @@ export default function Admin() {
 
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "home", label: "Home Page", icon: Settings },
     { id: "blogs", label: "Blogs", icon: BookOpen },
     { id: "courses", label: "Courses", icon: GraduationCap },
     { id: "messages", label: "Messages", icon: Mail },
+    { id: "subscribers", label: "Subscribers", icon: Search },
     { id: "seo", label: "SEO Settings", icon: Globe },
   ];
 
@@ -196,21 +260,23 @@ export default function Admin() {
                 <h1 className="text-2xl font-bold text-primary">Admin Panel</h1>
                 <p className="text-xs text-muted-foreground mt-1">Hello Surya IT Management</p>
               </div>
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
-                    activeTab === tab.id 
-                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <tab.icon className="h-5 w-5" />
-                  {tab.label}
-                </button>
-              ))}
+              <div className="space-y-1">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                      activeTab === tab.id 
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <tab.icon className="h-5 w-5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </aside>
 
             {/* Main Content Area */}
@@ -225,7 +291,7 @@ export default function Admin() {
                 >
                   {activeTab === "dashboard" && (
                     <div className="space-y-8">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <Card className="bg-primary text-primary-foreground">
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium opacity-80">Total Blogs</CardTitle>
@@ -248,6 +314,14 @@ export default function Admin() {
                           </CardHeader>
                           <CardContent>
                             <div className="text-3xl font-bold text-primary">{messages.length}</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-background border-2 border-accent/10">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Subscribers</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-3xl font-bold text-accent">{subscribers.length}</div>
                           </CardContent>
                         </Card>
                       </div>
@@ -276,12 +350,94 @@ export default function Admin() {
                     </div>
                   )}
 
+                  {activeTab === "home" && (
+                    <div className="space-y-8">
+                      <h2 className="text-3xl font-bold">Home Page Content</h2>
+                      
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Services Section</CardTitle>
+                          <CardDescription>Manage the services shown on the home page.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <form onSubmit={handleUpdateHome} className="space-y-8">
+                            {homeContent.services?.map((service: any, index: number) => (
+                              <div key={service.id} className="p-6 rounded-xl border bg-muted/30 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>Service Title</Label>
+                                    <Input 
+                                      value={service.title} 
+                                      onChange={(e) => {
+                                        const newServices = [...homeContent.services];
+                                        newServices[index].title = e.target.value;
+                                        setHomeContent({...homeContent, services: newServices});
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Icon (Code, Server, Globe, Zap)</Label>
+                                    <Input 
+                                      value={service.icon} 
+                                      onChange={(e) => {
+                                        const newServices = [...homeContent.services];
+                                        newServices[index].icon = e.target.value;
+                                        setHomeContent({...homeContent, services: newServices});
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Description</Label>
+                                  <Textarea 
+                                    value={service.description} 
+                                    onChange={(e) => {
+                                      const newServices = [...homeContent.services];
+                                      newServices[index].description = e.target.value;
+                                      setHomeContent({...homeContent, services: newServices});
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            
+                            <div className="space-y-4">
+                              <Label className="text-lg font-bold">Featured Courses (IDs)</Label>
+                              <CardDescription>Enter course IDs separated by commas to show them in the "Popular Courses" section.</CardDescription>
+                              <Input 
+                                value={homeContent.featuredCourses?.join(", ") || ""} 
+                                onChange={(e) => {
+                                  const ids = e.target.value.split(",").map(id => id.trim());
+                                  setHomeContent({...homeContent, featuredCourses: ids});
+                                }}
+                              />
+                            </div>
+
+                            <Button type="submit" className="w-full md:w-auto px-8">
+                              <Save className="h-4 w-4 mr-2" /> Save Home Content
+                            </Button>
+                          </form>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
                   {activeTab === "blogs" && (
                     <div className="space-y-6">
                       <div className="flex justify-between items-center">
                         <h2 className="text-3xl font-bold">Manage Blogs</h2>
                         {!showBlogForm && (
-                          <Button onClick={() => setShowBlogForm(true)}>
+                          <Button onClick={() => {
+                            setEditingBlog(null);
+                            setBlogFormData({
+                              title: "",
+                              excerpt: "",
+                              content: "",
+                              category: "",
+                              image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
+                            });
+                            setShowBlogForm(true);
+                          }}>
                             <Plus className="h-4 w-4 mr-2" /> New Post
                           </Button>
                         )}
@@ -290,7 +446,7 @@ export default function Admin() {
                       {showBlogForm && (
                         <Card className="border-primary/20 bg-primary/5">
                           <CardHeader>
-                            <CardTitle>Create New Blog Post</CardTitle>
+                            <CardTitle>{editingBlog ? "Edit Blog Post" : "Create New Blog Post"}</CardTitle>
                           </CardHeader>
                           <CardContent>
                             <form onSubmit={handleAddBlog} className="space-y-4">
@@ -338,7 +494,7 @@ export default function Admin() {
                                 />
                               </div>
                               <div className="flex gap-4">
-                                <Button type="submit">Create Blog</Button>
+                                <Button type="submit">{editingBlog ? "Update Blog" : "Create Blog"}</Button>
                                 <Button type="button" variant="outline" onClick={() => setShowBlogForm(false)}>Cancel</Button>
                               </div>
                             </form>
@@ -352,9 +508,14 @@ export default function Admin() {
                             <img src={blog.image} className="w-full h-32 object-cover" alt="" />
                             <CardHeader className="flex flex-row items-center justify-between py-4">
                               <CardTitle className="text-lg line-clamp-1">{blog.title}</CardTitle>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteBlog(blog.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => startEditBlog(blog)}>
+                                  <Edit2 className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteBlog(blog.id)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
                             </CardHeader>
                             <CardContent className="text-sm text-muted-foreground line-clamp-2">
                               {blog.excerpt}
@@ -370,7 +531,18 @@ export default function Admin() {
                       <div className="flex justify-between items-center">
                         <h2 className="text-3xl font-bold">Manage Courses</h2>
                         {!showCourseForm && (
-                          <Button onClick={() => setShowCourseForm(true)}>
+                          <Button onClick={() => {
+                            setEditingCourse(null);
+                            setCourseFormData({
+                              title: "",
+                              description: "",
+                              duration: "",
+                              price: "",
+                              image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
+                              tags: ""
+                            });
+                            setShowCourseForm(true);
+                          }}>
                             <Plus className="h-4 w-4 mr-2" /> New Course
                           </Button>
                         )}
@@ -379,7 +551,7 @@ export default function Admin() {
                       {showCourseForm && (
                         <Card className="border-accent/20 bg-accent/5">
                           <CardHeader>
-                            <CardTitle>Add New Course</CardTitle>
+                            <CardTitle>{editingCourse ? "Edit Course" : "Add New Course"}</CardTitle>
                           </CardHeader>
                           <CardContent>
                             <form onSubmit={handleAddCourse} className="space-y-4">
@@ -437,7 +609,7 @@ export default function Admin() {
                                 />
                               </div>
                               <div className="flex gap-4">
-                                <Button type="submit">Add Course</Button>
+                                <Button type="submit">{editingCourse ? "Update Course" : "Add Course"}</Button>
                                 <Button type="button" variant="outline" onClick={() => setShowCourseForm(false)}>Cancel</Button>
                               </div>
                             </form>
@@ -455,15 +627,21 @@ export default function Admin() {
                                 </div>
                                 <CardTitle className="text-lg">{course.title}</CardTitle>
                               </div>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteCourse(course.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => startEditCourse(course)}>
+                                  <Edit2 className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteCourse(course.id)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
                             </CardHeader>
                             <CardContent className="text-sm text-muted-foreground">
-                              <div className="flex justify-between">
+                              <div className="flex justify-between mb-2">
                                 <span>{course.price}</span>
                                 <span>{course.duration}</span>
                               </div>
+                              <p className="text-xs opacity-70">ID: {course.id}</p>
                             </CardContent>
                           </Card>
                         ))}
@@ -497,6 +675,29 @@ export default function Admin() {
                         ))}
                         {messages.length === 0 && <p className="text-center py-20 text-muted-foreground">No messages found.</p>}
                       </div>
+                    </div>
+                  )}
+
+                  {activeTab === "subscribers" && (
+                    <div className="space-y-6">
+                      <h2 className="text-3xl font-bold">Newsletter Subscribers</h2>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Subscriber List</CardTitle>
+                          <CardDescription>All emails registered for the newsletter.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {subscribers.map((email, i) => (
+                              <div key={i} className="p-3 rounded-lg bg-muted/50 border flex items-center gap-3">
+                                <Mail className="h-4 w-4 text-primary" />
+                                <span className="text-sm">{email}</span>
+                              </div>
+                            ))}
+                            {subscribers.length === 0 && <p className="text-center py-8 text-muted-foreground">No subscribers yet.</p>}
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   )}
 

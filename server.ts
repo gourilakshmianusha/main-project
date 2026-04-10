@@ -214,10 +214,54 @@ async function startServer() {
     }
   });
 
+  // Newsletter Storage
+  const newsletterSubscribers: string[] = [];
+
+  app.get("/api/newsletter-subscribers", (req, res) => {
+    res.json(newsletterSubscribers);
+  });
+
   app.post("/api/newsletter", (req, res) => {
     const { email } = req.body;
+    if (email && !newsletterSubscribers.includes(email)) {
+      newsletterSubscribers.push(email);
+    }
     console.log("Newsletter subscription:", email);
     res.json({ success: true, message: "Subscribed successfully!" });
+  });
+
+  // Home Page Content Storage
+  let homeContent: any = {
+    services: [
+      {
+        id: "1",
+        title: "Expert Training",
+        description: "Learn from industry professionals with years of real-world experience in Java and Python.",
+        icon: "Code"
+      },
+      {
+        id: "2",
+        title: "Project Based",
+        description: "Gain hands-on experience by working on live projects that simulate industry environments.",
+        icon: "Server"
+      },
+      {
+        id: "3",
+        title: "Career Support",
+        description: "Get guidance on resume building, interview preparation, and career path planning.",
+        icon: "Zap"
+      }
+    ],
+    featuredCourses: ["1", "2"] // IDs of courses to feature
+  };
+
+  app.get("/api/home-content", (req, res) => {
+    res.json(homeContent);
+  });
+
+  app.post("/api/home-content", (req, res) => {
+    homeContent = { ...homeContent, ...req.body };
+    res.json(homeContent);
   });
 
   // SEO Settings Storage

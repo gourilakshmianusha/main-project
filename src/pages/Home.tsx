@@ -66,23 +66,21 @@ const Hero = () => {
 };
 
 const Services = () => {
-  const services = [
-    {
-      icon: <Code className="h-10 w-10 text-primary" />,
-      title: "Java Full Stack",
-      description: "Comprehensive training from core Java to advanced Spring Boot and React integration for enterprise apps.",
-    },
-    {
-      icon: <Server className="h-10 w-10 text-primary" />,
-      title: "Python & AI",
-      description: "Master Python programming, data analysis, and machine learning with real-world industry projects.",
-    },
-    {
-      icon: <Globe className="h-10 w-10 text-primary" />,
-      title: "Web Development",
-      description: "Learn modern web technologies like Next.js, Node.js, and Tailwind CSS to build high-performance websites.",
-    },
-  ];
+  const [services, setServices] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    fetch("/api/home-content")
+      .then(res => res.json())
+      .then(data => setServices(data.services || []))
+      .catch(() => {});
+  }, []);
+
+  const iconMap: Record<string, any> = {
+    Code: <Code className="h-10 w-10 text-primary" />,
+    Server: <Server className="h-10 w-10 text-primary" />,
+    Globe: <Globe className="h-10 w-10 text-primary" />,
+    Zap: <Zap className="h-10 w-10 text-primary" />,
+  };
 
   return (
     <section className="py-24 bg-muted/30">
@@ -97,14 +95,14 @@ const Services = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {services.map((service, i) => (
             <motion.div
-              key={i}
+              key={service.id}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
               className="p-8 rounded-2xl border bg-background hover:shadow-xl transition-all"
             >
-              <div className="mb-6">{service.icon}</div>
+              <div className="mb-6">{iconMap[service.icon] || <Code className="h-10 w-10 text-primary" />}</div>
               <h3 className="text-2xl font-bold mb-4">{service.title}</h3>
               <p className="text-muted-foreground leading-relaxed">{service.description}</p>
             </motion.div>
@@ -116,20 +114,26 @@ const Services = () => {
 };
 
 const FeaturedWork = () => {
-  const projects = [
-    {
-      title: "Java Full Stack Development",
-      category: "Programming",
-      image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800&auto=format&fit=crop",
-      link: "/courses",
-    },
-    {
-      title: "Python Data Science",
-      category: "Data Science",
-      image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=800&auto=format&fit=crop",
-      link: "/courses",
-    },
-  ];
+  const [featuredCourses, setFeaturedCourses] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const loadFeatured = async () => {
+      try {
+        const [homeRes, coursesRes] = await Promise.all([
+          fetch("/api/home-content"),
+          fetch("/api/courses")
+        ]);
+        const homeData = await homeRes.json();
+        const coursesData = await coursesRes.json();
+        
+        const featured = coursesData.filter((c: any) => 
+          homeData.featuredCourses?.includes(c.id)
+        );
+        setFeaturedCourses(featured);
+      } catch (err) {}
+    };
+    loadFeatured();
+  }, []);
 
   return (
     <section className="py-24">
@@ -148,9 +152,9 @@ const FeaturedWork = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {projects.map((project, i) => (
+          {featuredCourses.map((project, i) => (
             <motion.div
-              key={i}
+              key={project.id}
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
@@ -163,13 +167,13 @@ const FeaturedWork = () => {
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-8">
-                <span className="text-primary font-medium mb-2">{project.category}</span>
+                <span className="text-primary font-medium mb-2">{project.tags?.[0] || "Course"}</span>
                 <h3 className="text-white text-3xl font-bold mb-4">{project.title}</h3>
                 <Link 
-                  to={project.link} 
+                  to="/courses" 
                   className={cn(buttonVariants({ variant: "secondary" }), "w-fit")}
                 >
-                  View Project
+                  View Details
                 </Link>
               </div>
             </motion.div>
