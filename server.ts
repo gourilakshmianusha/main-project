@@ -111,7 +111,7 @@ async function startServer() {
 
   app.post("/api/courses", (req, res) => {
     const newCourse = {
-      id: (courses.length + 1).toString(),
+      id: Date.now().toString(),
       ...req.body
     };
     courses.push(newCourse);
@@ -144,7 +144,7 @@ async function startServer() {
 
   app.post("/api/blogs", (req, res) => {
     const newBlog = {
-      id: (blogs.length + 1).toString(),
+      id: Date.now().toString(),
       date: new Date().toISOString().split('T')[0],
       author: "Surya",
       ...req.body

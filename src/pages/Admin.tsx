@@ -133,6 +133,9 @@ export default function Admin() {
           image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
         });
         fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
+        toast.error(`Failed to save blog: ${errorData.message}`);
       }
     } catch (err) {
       toast.error("Failed to save blog");
@@ -169,6 +172,9 @@ export default function Admin() {
           tags: ""
         });
         fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
+        toast.error(`Failed to save course: ${errorData.message}`);
       }
     } catch (err) {
       toast.error("Failed to save course");
