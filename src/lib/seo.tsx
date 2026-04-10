@@ -1,5 +1,7 @@
 import React from "react";
 import { Helmet } from "react-helmet-async";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 
 interface SEOProps {
   title?: string;
@@ -21,10 +23,12 @@ export const SEO: React.FC<SEOProps> = ({
   const [settings, setSettings] = React.useState<any>(null);
 
   React.useEffect(() => {
-    fetch("/api/seo-settings")
-      .then(res => res.json())
-      .then(data => setSettings(data))
-      .catch(() => {});
+    const unsub = onSnapshot(doc(db, "settings", "seo"), (doc) => {
+      if (doc.exists()) {
+        setSettings(doc.data());
+      }
+    }, (err) => handleFirestoreError(err, OperationType.GET, "settings/seo"));
+    return () => unsub();
   }, []);
 
   const pageSettings = pageId && settings?.pages?.[pageId] ? settings.pages[pageId] : {};
@@ -47,13 +51,6 @@ export const SEO: React.FC<SEOProps> = ({
     "author": {
       "@type": "Person",
       "name": globalSettings.author || "Surya"
-    },
-    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": "#Flat No 204 Swatisk Plaza opposite ashok nagar police station",
-      "addressLocality": "Ashok Nagar",
-      "addressRegion": "Telangana",
-      "addressCountry": "IN"
     },
     "telephone": "9989581311"
   };

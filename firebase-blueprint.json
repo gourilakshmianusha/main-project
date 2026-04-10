@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "Blog": {
+      "title": "Blog Post",
+      "description": "A blog post article",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the blog" },
+        "excerpt": { "type": "string", "description": "Short summary" },
+        "content": { "type": "string", "description": "Full markdown content" },
+        "date": { "type": "string", "format": "date", "description": "Publication date" },
+        "author": { "type": "string", "description": "Author name" },
+        "category": { "type": "string", "description": "Category tag" },
+        "image": { "type": "string", "description": "Cover image URL" }
+      },
+      "required": ["title", "content", "date", "author"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "An IT training course",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Course name" },
+        "description": { "type": "string", "description": "Course details" },
+        "duration": { "type": "string", "description": "Course length" },
+        "price": { "type": "string", "description": "Course fee" },
+        "image": { "type": "string", "description": "Course thumbnail URL" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Technologies covered" }
+      },
+      "required": ["title", "description", "duration", "price"]
+    },
+    "ContactMessage": {
+      "title": "Contact Message",
+      "description": "A message from the contact form",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "message", "date"]
+    },
+    "NewsletterSubscriber": {
+      "title": "Newsletter Subscriber",
+      "description": "An email subscribed to the newsletter",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "date"]
+    },
+    "HomeContent": {
+      "title": "Home Page Content",
+      "description": "Dynamic content for the home page",
+      "type": "object",
+      "properties": {
+        "services": { "type": "array" },
+        "featuredCourses": { "type": "array" }
+      }
+    },
+    "SEOSettings": {
+      "title": "SEO Settings",
+      "description": "Global and page-specific SEO settings",
+      "type": "object",
+      "properties": {
+        "global": { "type": "object" },
+        "pages": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "/blogs/{blogId}": { "schema": "Blog", "description": "Collection of blog posts" },
+    "/courses/{courseId}": { "schema": "Course", "description": "Collection of courses" },
+    "/contactMessages/{messageId}": { "schema": "ContactMessage", "description": "Collection of contact form submissions" },
+    "/newsletterSubscribers/{subscriberId}": { "schema": "NewsletterSubscriber", "description": "Collection of newsletter subscribers" },
+    "/settings/home": { "schema": "HomeContent", "description": "Singleton for home page content" },
+    "/settings/seo": { "schema": "SEOSettings", "description": "Singleton for SEO settings" }
+  }
+}

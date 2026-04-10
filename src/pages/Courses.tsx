@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { SEO } from "@/lib/seo";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 
 export default function Courses() {
   const [courses, setCourses] = React.useState<any[]>([]);
@@ -14,16 +16,19 @@ export default function Courses() {
   const [filter, setFilter] = React.useState("");
 
   React.useEffect(() => {
-    fetch("/api/courses")
-      .then(res => res.json())
-      .then(data => setCourses(data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
+      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, "courses");
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
   const filteredCourses = courses.filter(c => 
     c.title.toLowerCase().includes(filter.toLowerCase()) ||
-    c.tags.some((t: string) => t.toLowerCase().includes(filter.toLowerCase()))
+    (c.tags && c.tags.some((t: string) => t.toLowerCase().includes(filter.toLowerCase())))
   );
 
   return (
@@ -83,7 +88,7 @@ export default function Courses() {
                   </div>
                   <div className="p-6 flex flex-col flex-grow">
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {course.tags.map((tag: string) => (
+                      {course.tags?.map((tag: string) => (
                         <Badge key={tag} variant="secondary">{tag}</Badge>
                       ))}
                     </div>
@@ -109,7 +114,7 @@ export default function Courses() {
             </div>
           )}
 
-          {filteredCourses.length === 0 && (
+          {filteredCourses.length === 0 && !loading && (
             <div className="text-center py-20">
               <p className="text-xl text-muted-foreground">No courses found matching your search.</p>
             </div>

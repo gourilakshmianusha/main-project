@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Trash2, Edit2, Save, X, BookOpen, GraduationCap, Mail, Settings, Globe, LayoutDashboard, Search } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, BookOpen, GraduationCap, Mail, Settings, Globe, LayoutDashboard, Search, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,12 +9,34 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { toast } from "sonner";
 import { SEO } from "@/lib/seo";
 import { cn } from "@/lib/utils";
+import { 
+  db, 
+  auth, 
+  googleProvider, 
+  handleFirestoreError, 
+  OperationType 
+} from "@/lib/firebase";
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  deleteDoc, 
+  updateDoc, 
+  query, 
+  orderBy,
+  getDoc
+} from "firebase/firestore";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 
 export default function Admin() {
+  const [user, setUser] = React.useState<any>(null);
+  const [isAdmin, setIsAdmin] = React.useState(false);
   const [blogs, setBlogs] = React.useState<any[]>([]);
   const [courses, setCourses] = React.useState<any[]>([]);
   const [messages, setMessages] = React.useState<any[]>([]);
-  const [subscribers, setSubscribers] = React.useState<string[]>([]);
+  const [subscribers, setSubscribers] = React.useState<any[]>([]);
   const [homeContent, setHomeContent] = React.useState<any>({});
   const [seoSettings, setSeoSettings] = React.useState<any>({});
   const [isLoading, setIsLoading] = React.useState(true);
@@ -43,53 +65,82 @@ export default function Admin() {
     image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
   });
 
-  const fetchData = async () => {
-    try {
-      const [blogsRes, coursesRes, messagesRes, seoRes, homeRes, subRes] = await Promise.all([
-        fetch("/api/blogs"),
-        fetch("/api/courses"),
-        fetch("/api/contact-messages"),
-        fetch("/api/seo-settings"),
-        fetch("/api/home-content"),
-        fetch("/api/newsletter-subscribers")
-      ]);
-      const [blogsData, coursesData, messagesData, seoData, homeData, subData] = await Promise.all([
-        blogsRes.json(),
-        coursesRes.json(),
-        messagesRes.json(),
-        seoRes.json(),
-        homeRes.json(),
-        subRes.json()
-      ]);
-      setBlogs(blogsData);
-      setCourses(coursesData);
-      setMessages(messagesData);
-      setSeoSettings(seoData);
-      setHomeContent(homeData);
-      setSubscribers(subData);
-    } catch (err) {
-      toast.error("Failed to fetch data");
-    } finally {
+  React.useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user && user.email === "atomceatomce@gmail.com") {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+      }
       setIsLoading(false);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  React.useEffect(() => {
+    if (!isAdmin) return;
+
+    const unsubBlogs = onSnapshot(query(collection(db, "blogs"), orderBy("date", "desc")), (snapshot) => {
+      setBlogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "blogs"));
+
+    const unsubCourses = onSnapshot(collection(db, "courses"), (snapshot) => {
+      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "courses"));
+
+    const unsubMessages = onSnapshot(query(collection(db, "contactMessages"), orderBy("date", "desc")), (snapshot) => {
+      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "contactMessages"));
+
+    const unsubSubs = onSnapshot(query(collection(db, "newsletterSubscribers"), orderBy("date", "desc")), (snapshot) => {
+      setSubscribers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, "newsletterSubscribers"));
+
+    const unsubHome = onSnapshot(doc(db, "settings", "home"), (doc) => {
+      if (doc.exists()) setHomeContent(doc.data());
+    }, (err) => handleFirestoreError(err, OperationType.GET, "settings/home"));
+
+    const unsubSeo = onSnapshot(doc(db, "settings", "seo"), (doc) => {
+      if (doc.exists()) setSeoSettings(doc.data());
+    }, (err) => handleFirestoreError(err, OperationType.GET, "settings/seo"));
+
+    return () => {
+      unsubBlogs();
+      unsubCourses();
+      unsubMessages();
+      unsubSubs();
+      unsubHome();
+      unsubSeo();
+    };
+  }, [isAdmin]);
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success("Logged in successfully");
+    } catch (err) {
+      toast.error("Login failed");
     }
   };
 
-  React.useEffect(() => {
-    fetchData();
-  }, []);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast.success("Logged out");
+    } catch (err) {
+      toast.error("Logout failed");
+    }
+  };
 
   const handleUpdateSeo = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/seo-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(seoSettings)
-      });
-      if (res.ok) {
-        toast.success("SEO settings updated");
-      }
+      await setDoc(doc(db, "settings", "seo"), seoSettings);
+      toast.success("SEO settings updated");
     } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, "settings/seo");
       toast.error("Failed to update SEO");
     }
   };
@@ -97,15 +148,10 @@ export default function Admin() {
   const handleUpdateHome = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/home-content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(homeContent)
-      });
-      if (res.ok) {
-        toast.success("Home page content updated");
-      }
+      await setDoc(doc(db, "settings", "home"), homeContent);
+      toast.success("Home page content updated");
     } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, "settings/home");
       toast.error("Failed to update home content");
     }
   };
@@ -113,31 +159,31 @@ export default function Admin() {
   const handleAddBlog = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const method = editingBlog ? "PUT" : "POST";
-      const url = editingBlog ? `/api/blogs/${editingBlog.id}` : "/api/blogs";
-      
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(blogFormData)
-      });
-      if (res.ok) {
-        toast.success(editingBlog ? "Blog updated" : "Blog added");
-        setShowBlogForm(false);
-        setEditingBlog(null);
-        setBlogFormData({
-          title: "",
-          excerpt: "",
-          content: "",
-          category: "",
-          image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
-        });
-        fetchData();
+      const blogData = {
+        ...blogFormData,
+        date: new Date().toISOString().split('T')[0],
+        author: "Surya"
+      };
+
+      if (editingBlog) {
+        await updateDoc(doc(db, "blogs", editingBlog.id), blogData);
+        toast.success("Blog updated");
       } else {
-        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
-        toast.error(`Failed to save blog: ${errorData.message}`);
+        await addDoc(collection(db, "blogs"), blogData);
+        toast.success("Blog added");
       }
+
+      setShowBlogForm(false);
+      setEditingBlog(null);
+      setBlogFormData({
+        title: "",
+        excerpt: "",
+        content: "",
+        category: "",
+        image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?q=80&w=800&auto=format&fit=crop"
+      });
     } catch (err) {
+      handleFirestoreError(err, editingBlog ? OperationType.UPDATE : OperationType.CREATE, "blogs");
       toast.error("Failed to save blog");
     }
   };
@@ -147,36 +193,31 @@ export default function Admin() {
     const courseToSubmit = {
       ...courseFormData,
       tags: typeof courseFormData.tags === "string" 
-        ? courseFormData.tags.split(",").map(t => t.trim())
+        ? courseFormData.tags.split(",").map(t => t.trim()).filter(t => t !== "")
         : courseFormData.tags
     };
+    
     try {
-      const method = editingCourse ? "PUT" : "POST";
-      const url = editingCourse ? `/api/courses/${editingCourse.id}` : "/api/courses";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(courseToSubmit)
-      });
-      if (res.ok) {
-        toast.success(editingCourse ? "Course updated" : "Course added");
-        setShowCourseForm(false);
-        setEditingCourse(null);
-        setCourseFormData({
-          title: "",
-          description: "",
-          duration: "",
-          price: "",
-          image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
-          tags: ""
-        });
-        fetchData();
+      if (editingCourse) {
+        await updateDoc(doc(db, "courses", editingCourse.id), courseToSubmit);
+        toast.success("Course updated");
       } else {
-        const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
-        toast.error(`Failed to save course: ${errorData.message}`);
+        await addDoc(collection(db, "courses"), courseToSubmit);
+        toast.success("Course added");
       }
+
+      setShowCourseForm(false);
+      setEditingCourse(null);
+      setCourseFormData({
+        title: "",
+        description: "",
+        duration: "",
+        price: "",
+        image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
+        tags: ""
+      });
     } catch (err) {
+      handleFirestoreError(err, editingCourse ? OperationType.UPDATE : OperationType.CREATE, "courses");
       toast.error("Failed to save course");
     }
   };
@@ -207,42 +248,112 @@ export default function Admin() {
   };
 
   const handleDeleteBlog = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this blog?")) return;
     try {
-      const res = await fetch(`/api/blogs/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success("Blog deleted");
-        fetchData();
-      }
+      await deleteDoc(doc(db, "blogs", id));
+      toast.success("Blog deleted");
     } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `blogs/${id}`);
       toast.error("Failed to delete blog");
     }
   };
 
   const handleDeleteCourse = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this course?")) return;
     try {
-      const res = await fetch(`/api/courses/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success("Course deleted");
-        fetchData();
-      }
+      await deleteDoc(doc(db, "courses", id));
+      toast.success("Course deleted");
     } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `courses/${id}`);
       toast.error("Failed to delete course");
     }
   };
 
   const handleDeleteMessage = async (id: string) => {
     try {
-      const res = await fetch(`/api/contact-messages/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success("Message deleted");
-        fetchData();
-      }
+      await deleteDoc(doc(db, "contactMessages", id));
+      toast.success("Message deleted");
     } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `contactMessages/${id}`);
       toast.error("Failed to delete message");
     }
   };
 
+  const handleDeleteSubscriber = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "newsletterSubscribers", id));
+      toast.success("Subscriber removed");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `newsletterSubscribers/${id}`);
+      toast.error("Failed to remove subscriber");
+    }
+  };
+
+  const handleSeedData = async () => {
+    if (!window.confirm("This will overwrite your current home and SEO settings. Continue?")) return;
+    try {
+      // Seed SEO
+      await setDoc(doc(db, "settings", "seo"), {
+        global: {
+          title: "Hello Surya IT | Advanced Developer Training",
+          description: "Expert IT training in Java, Python, and Full Stack Web Development. Industry-led courses.",
+          keywords: "Java, Python, Web Development, IT Training, Coding Bootcamp",
+          author: "Surya",
+          ogImage: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800&auto=format&fit=crop"
+        },
+        pages: {
+          home: { title: "Home", description: "Master your IT future with Hello Surya IT." },
+          courses: { title: "Our Courses", description: "Explore our professional IT training programs." },
+          blog: { title: "Blog", description: "Latest IT insights and tutorials." },
+          contact: { title: "Contact Us", description: "Get in touch for professional IT training." }
+        }
+      });
+
+      // Seed Home
+      await setDoc(doc(db, "settings", "home"), {
+        services: [
+          { id: "1", title: "Expert Training", description: "Learn from industry professionals with years of real-world experience in Java and Python.", icon: "Code" },
+          { id: "2", title: "Project Based", description: "Gain hands-on experience by working on live projects that simulate industry environments.", icon: "Server" },
+          { id: "3", title: "Career Support", description: "Get guidance on resume building, interview preparation, and career path planning.", icon: "Zap" }
+        ],
+        featuredCourses: []
+      });
+
+      toast.success("Initial data seeded successfully!");
+    } catch (err) {
+      toast.error("Failed to seed data");
+    }
+  };
+
   if (isLoading) return <div className="p-20 text-center">Loading Admin Dashboard...</div>;
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+              <Settings className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Admin Login</CardTitle>
+            <CardDescription>
+              Please sign in with your authorized Google account to access the dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleLogin} className="w-full py-6 text-lg" size="lg">
+              <LogIn className="mr-2 h-5 w-5" /> Sign in with Google
+            </Button>
+            {user && !isAdmin && (
+              <p className="mt-4 text-center text-sm text-destructive font-medium">
+                Access denied. This account is not authorized.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -262,9 +373,14 @@ export default function Admin() {
           <div className="flex flex-col md:flex-row gap-8">
             {/* Sidebar Navigation */}
             <aside className="w-full md:w-64 space-y-2">
-              <div className="mb-8 px-4">
-                <h1 className="text-2xl font-bold text-primary">Admin Panel</h1>
-                <p className="text-xs text-muted-foreground mt-1">Hello Surya IT Management</p>
+              <div className="mb-8 px-4 flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-bold text-primary">Admin Panel</h1>
+                  <p className="text-xs text-muted-foreground mt-1">Hello Surya IT</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
+                  <LogOut className="h-4 w-4" />
+                </Button>
               </div>
               <div className="space-y-1">
                 {tabs.map((tab) => (
@@ -332,6 +448,12 @@ export default function Admin() {
                         </Card>
                       </div>
 
+                      <div className="flex justify-end">
+                        <Button variant="outline" size="sm" onClick={handleSeedData}>
+                          Seed Initial Data
+                        </Button>
+                      </div>
+
                       <Card>
                         <CardHeader>
                           <CardTitle>Recent Messages</CardTitle>
@@ -368,7 +490,7 @@ export default function Admin() {
                         <CardContent>
                           <form onSubmit={handleUpdateHome} className="space-y-8">
                             {homeContent.services?.map((service: any, index: number) => (
-                              <div key={service.id} className="p-6 rounded-xl border bg-muted/30 space-y-4">
+                              <div key={service.id || index} className="p-6 rounded-xl border bg-muted/30 space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="space-y-2">
                                     <Label>Service Title</Label>
@@ -511,7 +633,7 @@ export default function Admin() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {blogs.map((blog) => (
                           <Card key={blog.id} className="overflow-hidden">
-                            <img src={blog.image} className="w-full h-32 object-cover" alt="" />
+                            <img src={blog.image} className="w-full h-32 object-cover" alt="" referrerPolicy="no-referrer" />
                             <CardHeader className="flex flex-row items-center justify-between py-4">
                               <CardTitle className="text-lg line-clamp-1">{blog.title}</CardTitle>
                               <div className="flex gap-2">
@@ -694,10 +816,15 @@ export default function Admin() {
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-2">
-                            {subscribers.map((email, i) => (
-                              <div key={i} className="p-3 rounded-lg bg-muted/50 border flex items-center gap-3">
-                                <Mail className="h-4 w-4 text-primary" />
-                                <span className="text-sm">{email}</span>
+                            {subscribers.map((sub) => (
+                              <div key={sub.id} className="p-3 rounded-lg bg-muted/50 border flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <Mail className="h-4 w-4 text-primary" />
+                                  <span className="text-sm">{sub.email}</span>
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteSubscriber(sub.id)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                               </div>
                             ))}
                             {subscribers.length === 0 && <p className="text-center py-8 text-muted-foreground">No subscribers yet.</p>}
@@ -794,7 +921,7 @@ export default function Admin() {
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Page Description</Label>
+                                  <Label>Meta Description</Label>
                                   <Textarea 
                                     value={seoSettings.pages?.[page]?.description || ""} 
                                     onChange={(e) => setSeoSettings({

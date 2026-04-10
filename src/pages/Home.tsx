@@ -1,63 +1,50 @@
 import React from "react";
 import { motion } from "motion/react";
-import { ArrowRight, Code, Server, Globe, Zap, CheckCircle2, Star } from "lucide-react";
+import { ArrowRight, Code, Server, Zap, Globe, GraduationCap } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { SEO } from "@/lib/seo";
 import { cn } from "@/lib/utils";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { collection, onSnapshot, doc, getDocs, query, where, documentId } from "firebase/firestore";
+
+import { Badge } from "@/components/ui/badge";
 
 const Hero = () => {
   return (
-    <section className="relative overflow-hidden py-20 lg:py-32 grid-bg">
+    <section className="relative min-h-[90vh] flex items-center pt-20 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5 -z-10" />
       <div className="container mx-auto px-4">
-        <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
+        <div className="max-w-4xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6"
+            transition={{ duration: 0.6 }}
           >
-            <Star className="h-4 w-4 fill-primary" />
-            <span>Professional IT Training & Development</span>
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="hero-text text-6xl md:text-8xl font-bold mb-8 tracking-tighter"
-          >
-            Master Your <br />
-            <span className="text-muted-foreground">IT Future.</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-xl text-muted-foreground mb-10 max-w-2xl"
-          >
-            We provide industry-leading training in Java, Python, and Full Stack Development. Join our expert-led courses and transform your career with hands-on projects.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4"
-          >
-            <Link 
-              to="/courses" 
-              className={cn(buttonVariants({ size: "lg" }), "h-14 px-8 text-lg")}
-            >
-              Explore Courses <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-            <Link 
-              to="/contact" 
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-14 px-8 text-lg")}
-            >
-              Let's Talk
-            </Link>
+            <Badge className="mb-6 px-4 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
+              #1 IT Training Institute
+            </Badge>
+            <h1 className="text-5xl md:text-8xl font-bold mb-8 tracking-tight leading-[1.1]">
+              Master Your <span className="text-primary">IT Future</span> with Hello Surya IT
+            </h1>
+            <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-2xl leading-relaxed">
+              Industry-led training in Java, Python, and Full Stack Development. 
+              Gain real-world skills and launch your career in tech.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link 
+                to="/courses" 
+                className={cn(buttonVariants({ size: "lg" }), "h-14 px-8 text-lg shadow-xl shadow-primary/20")}
+              >
+                Explore Courses <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+              <Link 
+                to="/contact" 
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-14 px-8 text-lg")}
+              >
+                Book Free Demo
+              </Link>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -69,10 +56,12 @@ const Services = () => {
   const [services, setServices] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    fetch("/api/home-content")
-      .then(res => res.json())
-      .then(data => setServices(data.services || []))
-      .catch(() => {});
+    const unsub = onSnapshot(doc(db, "settings", "home"), (doc) => {
+      if (doc.exists()) {
+        setServices(doc.data().services || []);
+      }
+    }, (err) => handleFirestoreError(err, OperationType.GET, "settings/home"));
+    return () => unsub();
   }, []);
 
   const iconMap: Record<string, any> = {
@@ -95,7 +84,7 @@ const Services = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {services.map((service, i) => (
             <motion.div
-              key={service.id}
+              key={service.id || i}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -117,22 +106,22 @@ const FeaturedWork = () => {
   const [featuredCourses, setFeaturedCourses] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    const loadFeatured = async () => {
-      try {
-        const [homeRes, coursesRes] = await Promise.all([
-          fetch("/api/home-content"),
-          fetch("/api/courses")
-        ]);
-        const homeData = await homeRes.json();
-        const coursesData = await coursesRes.json();
+    const unsubHome = onSnapshot(doc(db, "settings", "home"), async (homeDoc) => {
+      if (homeDoc.exists()) {
+        const homeData = homeDoc.data();
+        const courseIds = homeData.featuredCourses || [];
         
-        const featured = coursesData.filter((c: any) => 
-          homeData.featuredCourses?.includes(c.id)
-        );
-        setFeaturedCourses(featured);
-      } catch (err) {}
-    };
-    loadFeatured();
+        if (courseIds.length > 0) {
+          const q = query(collection(db, "courses"), where(documentId(), "in", courseIds));
+          const coursesSnap = await getDocs(q);
+          setFeaturedCourses(coursesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setFeaturedCourses([]);
+        }
+      }
+    }, (err) => handleFirestoreError(err, OperationType.GET, "settings/home"));
+
+    return () => unsubHome();
   }, []);
 
   return (
@@ -152,29 +141,40 @@ const FeaturedWork = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {featuredCourses.map((project, i) => (
+          {featuredCourses.map((course, i) => (
             <motion.div
-              key={project.id}
+              key={course.id}
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              className="group relative overflow-hidden rounded-3xl border bg-muted"
+              transition={{ delay: i * 0.1 }}
+              className="group relative aspect-[16/10] rounded-3xl overflow-hidden border bg-muted"
             >
               <img
-                src={project.image}
-                alt={project.title}
-                className="w-full aspect-[4/3] object-cover transition-transform duration-500 group-hover:scale-105"
+                src={course.image}
+                alt={course.title}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-8">
-                <span className="text-primary font-medium mb-2">{project.tags?.[0] || "Course"}</span>
-                <h3 className="text-white text-3xl font-bold mb-4">{project.title}</h3>
-                <Link 
-                  to="/courses" 
-                  className={cn(buttonVariants({ variant: "secondary" }), "w-fit")}
-                >
-                  View Details
-                </Link>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
+              <div className="absolute bottom-0 left-0 p-8 md:p-12 w-full">
+                <div className="flex gap-2 mb-4">
+                  {course.tags?.slice(0, 2).map((tag: string) => (
+                    <Badge key={tag} className="bg-white/20 text-white border-white/20 backdrop-blur-md">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+                <h3 className="text-2xl md:text-4xl font-bold text-white mb-4">{course.title}</h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/80 font-medium">{course.duration}</span>
+                  <Link 
+                    to="/courses" 
+                    className="h-12 w-12 rounded-full bg-white text-black flex items-center justify-center -rotate-45 group-hover:rotate-0 transition-transform duration-500"
+                  >
+                    <ArrowRight className="h-6 w-6" />
+                  </Link>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -191,18 +191,32 @@ export default function Home() {
       <Hero />
       <Services />
       <FeaturedWork />
-      <section className="py-24 bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl md:text-6xl font-bold mb-8 tracking-tight">Ready to boost your career?</h2>
-          <p className="text-xl opacity-80 mb-10 max-w-2xl mx-auto">
-            Join our next batch and learn from industry experts. Limited seats available for our upcoming Java and Python courses.
-          </p>
-          <Link 
-            to="/contact" 
-            className={cn(buttonVariants({ variant: "secondary", size: "lg" }), "h-14 px-8 text-lg")}
-          >
-            Enroll Now
-          </Link>
+      
+      {/* CTA Section */}
+      <section className="py-24 bg-primary text-primary-foreground overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-1/3 h-full bg-white/5 -skew-x-12 translate-x-1/2" />
+        <div className="container mx-auto px-4 relative">
+          <div className="max-w-3xl">
+            <h2 className="text-4xl md:text-6xl font-bold mb-8 tracking-tight">Ready to start your tech journey?</h2>
+            <p className="text-xl opacity-80 mb-12 leading-relaxed">
+              Join hundreds of successful students who have transformed their careers with Hello Surya IT. 
+              Get industry-ready skills today.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link 
+                to="/contact" 
+                className={cn(buttonVariants({ variant: "secondary", size: "lg" }), "h-14 px-8 text-lg")}
+              >
+                Enroll Now
+              </Link>
+              <Link 
+                to="/courses" 
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-14 px-8 text-lg border-white/20 hover:bg-white/10")}
+              >
+                View Catalog
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </>

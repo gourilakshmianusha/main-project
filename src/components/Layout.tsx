@@ -7,6 +7,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { toast } from "sonner";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -92,18 +95,15 @@ const Footer = () => {
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/newsletter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+      await addDoc(collection(db, "newsletterSubscribers"), {
+        email,
+        date: new Date().toISOString()
       });
-      const data = await res.json();
-      if (data.success) {
-        alert(data.message);
-        setEmail("");
-      }
+      toast.success("Subscribed successfully!");
+      setEmail("");
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.CREATE, "newsletterSubscribers");
+      toast.error("Failed to subscribe. Please try again.");
     }
   };
 
@@ -122,7 +122,6 @@ const Footer = () => {
               Advanced IT training and development center specializing in Java, Python, and Full Stack Web Technologies.
             </p>
             <div className="space-y-2 text-sm text-muted-foreground mb-6">
-              <p>#Flat No 204 Swatisk Plaza opposite ashok nagar police station</p>
               <p>Phone: 9989581311</p>
             </div>
             <div className="flex gap-4">

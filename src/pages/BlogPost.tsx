@@ -1,128 +1,99 @@
 import React from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { Calendar, User, ArrowLeft, Share2, Twitter, Linkedin, Facebook } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Calendar, User, ArrowLeft, Share2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SEO } from "@/lib/seo";
-import { cn } from "@/lib/utils";
-
-interface Blog {
-  id: string;
-  title: string;
-  excerpt: string;
-  content: string;
-  date: string;
-  author: string;
-  category: string;
-  image: string;
-}
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function BlogPost() {
   const { id } = useParams();
-  const [blog, setBlog] = React.useState<Blog | null>(null);
+  const [post, setPost] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    fetch(`/api/blogs/${id}`)
-      .then(res => res.json())
-      .then(data => setBlog(data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    if (!id) return;
+    const fetchPost = async () => {
+      try {
+        const docRef = doc(db, "blogs", id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setPost({ id: docSnap.id, ...docSnap.data() });
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `blogs/${id}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPost();
   }, [id]);
 
-  if (loading) return <div className="container mx-auto px-4 py-20 text-center">Loading...</div>;
-  if (!blog) return <div className="container mx-auto px-4 py-20 text-center">Blog not found.</div>;
+  if (loading) return <div className="p-20 text-center">Loading post...</div>;
+  if (!post) return <div className="p-20 text-center">Post not found.</div>;
 
   return (
     <>
       <SEO 
-        title={blog.title} 
-        description={blog.excerpt} 
-        image={blog.image}
-        type="article"
+        title={`${post.title} | Hello Surya IT Blog`} 
+        description={post.excerpt} 
       />
       <article className="py-20">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <Link 
-            to="/blog" 
-            className={cn(buttonVariants({ variant: "ghost" }), "mb-8 -ml-4 flex items-center w-fit")}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Blog
-          </Link>
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <Link 
+              to="/blog" 
+              className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-8 transition-colors"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Blog
+            </Link>
 
-          <header className="mb-12">
-            <div className="flex items-center gap-4 mb-6">
-              <span className="text-primary font-bold uppercase tracking-wider text-sm">{blog.category}</span>
-              <Separator orientation="vertical" className="h-4" />
-              <div className="flex items-center text-muted-foreground text-sm">
-                <Calendar className="mr-2 h-4 w-4" /> {blog.date}
-              </div>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold mb-8 tracking-tight leading-tight">
-              {blog.title}
-            </h1>
-            <div className="flex items-center justify-between py-6 border-y">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                  {blog.author[0]}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
+                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-medium">
+                  {post.category}
+                </span>
+                <div className="flex items-center">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {new Date(post.date).toLocaleDateString()}
                 </div>
-                <div>
-                  <p className="font-bold text-sm">{blog.author}</p>
-                  <p className="text-xs text-muted-foreground">Web Developer</p>
+                <div className="flex items-center">
+                  <User className="mr-2 h-4 w-4" />
+                  {post.author}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon"><Twitter className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon"><Linkedin className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon"><Share2 className="h-4 w-4" /></Button>
+
+              <h1 className="text-4xl md:text-6xl font-bold mb-8 tracking-tight leading-tight">
+                {post.title}
+              </h1>
+
+              <div className="aspect-video rounded-3xl overflow-hidden mb-12 border">
+                <img
+                  src={post.image}
+                  alt={post.title}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-            </div>
-          </header>
 
-          <img
-            src={blog.image}
-            alt={blog.title}
-            className="w-full aspect-video object-cover rounded-3xl mb-12"
-            referrerPolicy="no-referrer"
-          />
+              <div className="prose prose-lg dark:prose-invert max-w-none">
+                <div className="whitespace-pre-wrap text-muted-foreground leading-relaxed text-lg">
+                  {post.content}
+                </div>
+              </div>
 
-          <div className="prose prose-lg max-w-none dark:prose-invert">
-            <p className="text-xl text-muted-foreground mb-8 leading-relaxed italic">
-              {blog.excerpt}
-            </p>
-            <div className="text-foreground leading-relaxed space-y-6">
-              {blog.content.split('\n').map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-              <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-              </p>
-              <h3 className="text-2xl font-bold mt-12 mb-4">Key Takeaways</h3>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>Understanding the core principles of modern architecture.</li>
-                <li>Implementing efficient data fetching strategies.</li>
-                <li>Optimizing for Core Web Vitals and SEO.</li>
-              </ul>
-              <p>
-                Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-              </p>
-            </div>
-          </div>
-
-          <Separator className="my-16" />
-
-          <div className="bg-muted/30 p-8 rounded-3xl text-center">
-            <h3 className="text-2xl font-bold mb-4">Enjoyed this post?</h3>
-            <p className="text-muted-foreground mb-8">Subscribe to my newsletter to get the latest articles directly in your inbox.</p>
-            <div className="flex max-w-md mx-auto gap-2">
-              <input 
-                type="email" 
-                placeholder="Email address" 
-                className="flex-grow h-12 px-4 rounded-lg border bg-background"
-              />
-              <Button className="h-12 px-8">Subscribe</Button>
-            </div>
+              <div className="mt-16 pt-8 border-t flex items-center justify-between">
+                <div className="flex gap-4">
+                  <Button variant="outline" size="sm">
+                    <Share2 className="mr-2 h-4 w-4" /> Share
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </div>
       </article>

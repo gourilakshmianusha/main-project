@@ -1,46 +1,37 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Calendar, User, ArrowRight, Tag } from "lucide-react";
+import { Calendar, User, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SEO } from "@/lib/seo";
 import { cn } from "@/lib/utils";
-
-interface Blog {
-  id: string;
-  title: string;
-  excerpt: string;
-  date: string;
-  author: string;
-  category: string;
-  image: string;
-}
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 
 export default function Blog() {
-  const [blogs, setBlogs] = React.useState<Blog[]>([]);
+  const [blogs, setBlogs] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    fetch("/api/blogs")
-      .then(res => res.json())
-      .then(data => {
-        setBlogs(data);
-        setLoading(true); // Set to true to simulate loading if needed, but here we just set data
-      })
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    const unsub = onSnapshot(query(collection(db, "blogs"), orderBy("date", "desc")), (snapshot) => {
+      setBlogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, "blogs");
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
   return (
     <>
       <SEO pageId="blog" />
-      <div className="py-20">
+      <div className="py-20 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mb-16">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">Blog</h1>
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">Our Blog</h1>
             <p className="text-xl text-muted-foreground">
-              Thoughts, tutorials, and insights on modern web development and technology.
+              Insights, tutorials, and news from the world of software development and IT training.
             </p>
           </div>
 
@@ -55,43 +46,60 @@ export default function Blog() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-              {blogs.map((blog, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {blogs.map((post, i) => (
                 <motion.article
-                  key={blog.id}
+                  key={post.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="group"
+                  className="flex flex-col bg-background border rounded-2xl overflow-hidden hover:shadow-xl transition-all group"
                 >
-                  <Link to={`/blog/${blog.id}`} className="block mb-6 overflow-hidden rounded-2xl border">
+                  <Link to={`/blog/${post.id}`} className="block aspect-video overflow-hidden">
                     <img
-                      src={blog.image}
-                      alt={blog.title}
-                      className="w-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105"
+                      src={post.image}
+                      alt={post.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       referrerPolicy="no-referrer"
                     />
                   </Link>
-                  <div className="flex items-center gap-4 mb-4">
-                    <Badge variant="secondary">{blog.category}</Badge>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Calendar className="mr-1 h-4 w-4" /> {blog.date}
+                  <div className="p-6 flex flex-col flex-grow">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                      <span className="bg-primary/10 text-primary px-2 py-1 rounded-md font-medium">
+                        {post.category}
+                      </span>
+                      <div className="flex items-center">
+                        <Calendar className="mr-1 h-3 w-3" />
+                        {new Date(post.date).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <h2 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">
+                      <Link to={`/blog/${post.id}`}>{post.title}</Link>
+                    </h2>
+                    <p className="text-muted-foreground text-sm mb-6 line-clamp-3">
+                      {post.excerpt}
+                    </p>
+                    <div className="mt-auto pt-6 border-t flex items-center justify-between">
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <User className="mr-1 h-3 w-3" />
+                        {post.author}
+                      </div>
+                      <Link 
+                        to={`/blog/${post.id}`} 
+                        className="text-primary text-sm font-bold flex items-center hover:gap-2 transition-all"
+                      >
+                        Read More <ArrowRight className="ml-1 h-4 w-4" />
+                      </Link>
                     </div>
                   </div>
-                  <h2 className="text-2xl font-bold mb-4 group-hover:text-primary transition-colors">
-                    <Link to={`/blog/${blog.id}`}>{blog.title}</Link>
-                  </h2>
-                  <p className="text-muted-foreground mb-6 line-clamp-2">
-                    {blog.excerpt}
-                  </p>
-                  <Link 
-                    to={`/blog/${blog.id}`} 
-                    className={cn(buttonVariants({ variant: "ghost" }), "p-0 h-auto hover:bg-transparent hover:text-primary flex items-center")}
-                  >
-                    Read More <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
                 </motion.article>
               ))}
+            </div>
+          )}
+
+          {blogs.length === 0 && !loading && (
+            <div className="text-center py-20">
+              <p className="text-xl text-muted-foreground">No blog posts found.</p>
             </div>
           )}
         </div>
